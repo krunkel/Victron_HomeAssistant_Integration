@@ -1,0 +1,71 @@
+# additional config in existing esphome device to send our total PV Inverter power (pv_power_total) to Victron Cerbo
+
+globals:
+  - id: portal_id
+    type: std::string
+    restore_value: no
+    initial_value: '"<not set>"'
+  - id: device_instance
+    type: std::string
+    restore_value: no
+    initial_value: '"<not set>"'
+
+mqtt:
+  broker: 192.168.1.95
+  discovery: false
+  birth_message:
+    topic: device/p1mqtt/Status
+    payload: "{ \"clientId\": \"pvtotal\", \"connected\": 1, \"version\": \"v1.0\", \"services\": {\"pv1\": \"pvinverter\"} }"
+  will_message:
+    topic: device/p1mqtt/Status
+    payload: "{ \"clientId\": \"pvtotal\", \"connected\": 0, \"services\": {\"pv1\": \"pvinverter\"} }"
+  on_json_message:
+    topic: device/pvtotal/DBus
+    then:
+      - lambda: |-
+          id(portal_id) = x["portalId"].as<std::string>();
+          id(device_instance) = x["deviceInstance"]["pv1"].as<std::string>();
+      - mqtt.publish_json:
+          topic: !lambda |-
+            return str_sprintf("W/%s/pvinverter/%s/CustomName", id(portal_id).c_str(), id(device_instance).c_str());
+          payload: |-
+            root["value"] = "PV-Total";
+      - mqtt.publish_json:
+          topic: !lambda |-
+            return str_sprintf("W/%s/pvinverter/%s/Role", id(portal_id).c_str(), id(device_instance).c_str());
+          payload: |-
+            root["value"] = "pvinverter";
+
+sensor:
+  - platform: homeassistant
+    id: pv_power_string1
+    entity_id: sensor.zon_a_power
+    internal: True
+  - platform: homeassistant
+    id: pv_power_string2
+    entity_id: sensor.zon_b_power
+    internal: True
+  - platform: homeassistant
+    id: pv_power_string3
+    entity_id: sensor.zb_stekker_zon_c_electrical_measurement
+    internal: True
+  - platform: template
+    name: "pv_power_total"
+    id: pv_power_total
+    lambda: |-
+      return id(pv_power_string1).state + id(pv_power_string2).state + id(pv_power_string3).state;
+    update_interval: 10s
+    device_class: power
+    unit_of_measurement: W
+    on_value:
+      then:
+        - mqtt.publish_json:
+            topic: !lambda |-
+              return str_sprintf("W/%s/pvinverter/%s/Ac/Power", id(portal_id).c_str(), id(device_instance).c_str());
+            payload: |-
+              root["value"] = id(pv_power_total).state;    
+        - mqtt.publish_json:
+            topic: !lambda |-
+              return str_sprintf("W/%s/pvinverter/%s/Ac/L1/Power", id(portal_id).c_str(), id(device_instance).c_str());
+            payload: |-
+              root["value"] = id(pv_power_total).state;
