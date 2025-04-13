@@ -1,0 +1,282 @@
+## Inspired by Smarty Van: https://www.youtube.com/watch?v=lvTGsOFsy8o
+## VICTRON MQTT ENTITIES
+mqtt:
+  number:
+    - name: "Victron Charge Amperage"
+      unique_id: "e290e15e-5914-4ee9-a141-eddbb04ec1b2"
+      command_topic: "victron/W/c0619ab74931/vebus/276/Ac/ActiveIn/CurrentLimit"
+      #command_template: '{"value": {{ value | float }} }'
+      state_topic: "victron/N/c0619ab74931/vebus/276/Ac/ActiveIn/CurrentLimit"
+      value_template: "{{ value_json.value }}"
+      min: 4
+      max: 32
+      step: 0.5
+      device:
+        {
+          identifiers: ["Cerbo GX"],
+          manufacturer: "Victron Energy",
+          model: "Cerbo GX",
+          name: "Cerbo GX",
+        }
+
+  switch:
+    #Inverter
+    - name: "Inverter"
+      unique_id: "d9ad8dd6-9acd-49df-8267-54454686185f"
+      state_topic: "victron/N/c0619ab74931/vebus/276/Mode"
+      command_topic: "victron/W/c0619ab74931/vebus/276/Mode"
+      state_on: '{"value": 3}'
+      state_off: '{"value": 4}'
+      payload_on: '{"value": 3}'
+      payload_off: '{"value": 4}'
+      optimistic: false
+      device:
+        {
+          identifiers: ["Cerbo GX"],
+          manufacturer: "Victron Energy",
+          model: "Cerbo GX",
+          name: "Cerbo GX",
+        }
+
+  sensor:
+    ## SYSTEM
+    #Inverter Mode
+    - state_topic: "victron/N/c0619ab74931/vebus/276/Mode"
+      name: "Inverter Mode"
+      unique_id: c6aaa910-76a3-4faf-8c9f-00feebb0245e
+      icon: mdi:generator-portable
+      value_template: >
+        {% if value_json.value == 1 %}
+          Charger Only
+        {% elif value_json.value == 2 %}
+          Inverter Only
+        {% elif value_json.value == 3 %}
+          On
+        {% elif value_json.value == 4 %}
+          Off
+        {% else %}
+          Error - No Data
+        {% endif %}
+      device:
+        {
+          identifiers: ["Cerbo GX"],
+          manufacturer: "Victron Energy",
+          model: "Cerbo GX",
+          name: "Cerbo GX",
+        }
+
+    #Inverter State
+    - state_topic: "victron/N/c0619ab74931/vebus/276/State"
+      unique_id: 23390d7b-ad47-4d3b-9f14-8e00b7fbea1f
+      icon: mdi:lightning-bolt
+      name: "Inverter State"
+      value_template: >
+        {% if value_json.value == 0 %}
+          Off
+        {% elif value_json.value == 1 %}
+          Low Power
+        {% elif value_json.value == 2 %}
+          Fault
+        {% elif value_json.value == 3 %}
+          Bulk
+        {% elif value_json.value == 4 %}
+          Absorption
+        {% elif value_json.value == 5 %}
+          Float
+        {% elif value_json.value == 6 %}
+          Storage
+        {% elif value_json.value == 7 %}
+          Equalize
+        {% elif value_json.value == 8 %}
+          Passthrough
+        {% elif value_json.value == 9 %}
+          Inverting
+        {% elif value_json.value == 10 %}
+          Power Assist
+        {% elif value_json.value == 11 %}
+          Power Supply
+        {% elif value_json.value == 244 %}
+          Sustain
+        {% elif value_json.value == 252 %}
+          External Control
+        {% else %}
+          Error - No Data
+        {% endif %}
+      device:
+        {
+          identifiers: ["Cerbo GX"],
+          manufacturer: "Victron Energy",
+          model: "Cerbo GX",
+          name: "Cerbo GX",
+        }
+
+    #Input AC Current Limit
+    - state_topic: "victron/N/c0619ab74931/vebus/276/Ac/In/1/CurrentLimit"
+      name: "Active Input Current Limit"
+      unique_id: 9bfbf09f-9344-43ae-941a-24f9584bb2a0
+      unit_of_measurement: "A"
+      device_class: current
+      value_template: "{{ value_json.value }}"
+      device:
+        {
+          identifiers: ["Cerbo GX"],
+          manufacturer: "Victron Energy",
+          model: "Cerbo GX",
+          name: "Cerbo GX",
+        }
+
+    #AC Consumption
+    - state_topic: "victron/N/c0619ab74931/system/0/Ac/Consumption/L1/Power"
+      name: "AC Consumption"
+      unique_id: 71b89126-3fcc-4070-8c33-ea99b4bdbfa2
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      value_template: "{{ value_json.value | float(0) | round }}"
+      device:
+        {
+          identifiers: ["Cerbo GX"],
+          manufacturer: "Victron Energy",
+          model: "Cerbo GX",
+          name: "Cerbo GX",
+        }
+
+    #AC Out
+    - state_topic: "victron/N/c0619ab74931/vebus/276/Ac/Out/L1/P"
+      name: "Victron AC Output"
+      unique_id: 71b89126-3fcc-4070-8c33-ea99b4bdbfa3
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      value_template: "{{ value_json.value | float(0) | round }}"
+      device:
+        {
+          identifiers: ["Cerbo GX"],
+          manufacturer: "Victron Energy",
+          model: "Cerbo GX",
+          name: "Cerbo GX",
+        }
+
+    #Inverter Overload Alarm
+    - state_topic: "victron/N/c0619ab74931/vebus/276/Alarms/Overload"
+      name: "Inverter Overload Alarm"
+      unique_id: 271ce83f-43d5-4885-a6a1-d94e6952ba38
+      icon: mdi:alert
+      value_template: >
+        {% if value_json.value == 0 %}
+          No Alarm
+        {% elif value_json.value == 1 %}
+          Warning
+        {% elif value_json.value == 2 %}
+          Alarm
+        {% else %}
+          No Data
+        {% endif %}
+      device:
+        {
+          identifiers: ["Cerbo GX"],
+          manufacturer: "Victron Energy",
+          model: "Cerbo GX",
+          name: "Cerbo GX",
+        }
+
+    ## BATTERIES
+
+    #SOC
+    - state_topic: "victron/N/c0619ab74931/system/0/Dc/Battery/Soc"
+      name: "Battery SoC"
+      unique_id: 963a9ae9-d333-4e6f-9c08-45f14750d203
+      icon: mdi:battery
+      unit_of_measurement: "%"
+      device_class: battery
+      value_template: "{{ value_json.value | float(0) | round }}"
+      device:
+        {
+          identifiers: ["Cerbo GX"],
+          manufacturer: "Victron Energy",
+          model: "Cerbo GX",
+          name: "Cerbo GX",
+        }
+
+    #Battery Voltage
+    - state_topic: "victron/N/c0619ab74931/battery/512/Dc/0/Voltage"
+      name: "Battery Voltage"
+      unique_id: 964eba87-5d2f-4bb2-8205-86e1b3066e1e
+      icon: mdi:flash-triangle
+      unit_of_measurement: "V"
+      device_class: voltage
+      value_template: "{{ value_json.value | float(0) | round(1) }}"
+      device:
+        {
+          identifiers: ["Cerbo GX"],
+          manufacturer: "Victron Energy",
+          model: "Cerbo GX",
+          name: "Cerbo GX",
+        }
+
+    #Battery Current
+    - state_topic: "victron/N/c0619ab74931/battery/512/Dc/0/Current"
+      name: "Battery Current"
+      unique_id: 863ac196-c0cd-46c6-8f9e-14744e9c8104
+      icon: mdi:current-ac
+      unit_of_measurement: "A"
+      device_class: current
+      value_template: "{{ value_json.value | float(0) | round }}"
+      device:
+        {
+          identifiers: ["Cerbo GX"],
+          manufacturer: "Victron Energy",
+          model: "Cerbo GX",
+          name: "Cerbo GX",
+        }
+
+    #Battery Power
+    - state_topic: "victron/N/c0619ab74931/battery/512/Dc/0/Power"
+      name: "Battery Power"
+      unique_id: 5897aa8b-8346-414e-8c9e-c3248e65c426
+      icon: mdi:sine-wave
+      unit_of_measurement: "W"
+      device_class: power
+      value_template: "{{ value_json.value | float(0) | round }}"
+      device:
+        {
+          identifiers: ["Cerbo GX"],
+          manufacturer: "Victron Energy",
+          model: "Cerbo GX",
+          name: "Cerbo GX",
+        }
+template:
+  - sensor:
+      - name: "home_bat1_power_charge"
+        device_class: power
+        unit_of_measurement: "W"
+        state: >
+          {% set pwr = states('sensor.cerbo_gx_battery_power') | float %}
+          {% if pwr > 0 %}
+            {{pwr}}
+          {%- else -%}
+            {{0}}
+          {%- endif %}
+      - name: "home_bat1_power_deliver"
+        device_class: power
+        unit_of_measurement: "W"
+        state: >
+          {% set pwr = states('sensor.cerbo_gx_battery_power') | float %}
+          {% if pwr < 0 %}
+            {{pwr}}
+          {%- else -%}
+            {{0}}
+          {%- endif %}
+
+# toegevoegd als helper
+#sensor:
+#  - platform: integration
+#    name: home_bat1_energy_charged
+#    source: sensor.home_bat1_power_charge
+#    unit_prefix: k
+#    round: 4
+#  - platform: integration
+#    name: home_bat1_energy_delivered
+#    source: sensor.home_bat1_power_deliver
+#    unit_prefix: k
+#    round: 4
