@@ -1,0 +1,293 @@
+# Inspiration: https://github.com/mmakaay/dsmr-reader-for-esphome/blob/main/example.yaml
+substitutions:
+  friendly_name: P1Reader
+  
+esphome:
+  name: esp-mini-p1
+  friendly_name: esp-mini-p1
+
+esp8266:
+  board: d1_mini
+
+logger:
+  # Serial logging is disabled by setting the logger baud rate to 0.
+  # Otherwise the logger will occupy the hardware UART, making it unavailable
+  # for receiving smart meter data on pin D7 (GPIO13).
+  baud_rate: 0
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "ULDsyDenTWb8E7azzPCSHjaTFz6+4w5ZY9rm22t+lzE="
+
+ota:
+  platform: esphome
+  password: !secret esphome_ota_pw
+
+wifi:
+  ssid: !secret wifi_ssid_iot
+  password: !secret wifi_pw_iot
+  manual_ip:
+    static_ip: !secret ip_esp-mini-p1
+    gateway: !secret ip_iot_gateway
+    subnet: !secret ip_iot_subnet
+    dns1: !secret ip_iot_dns
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "esp-mini-p1 Fallback Hotspot"
+    password: !secret esphome_fb_pw
+
+captive_portal:
+
+
+uart:
+  id: p1_uart
+  rx_pin:
+    number: GPIO3   #RX
+  baud_rate: 115200
+  rx_buffer_size: 1700
+
+dsmr:
+  uart_id: p1_uart
+  crc_check: False  
+  max_telegram_length: 1700
+
+globals:
+  - id: portal_id
+    type: std::string
+    restore_value: no
+    initial_value: '"<not set>"'
+  - id: device_instance
+    type: std::string
+    restore_value: no
+    initial_value: '"<not set>"'
+
+mqtt:
+  broker: 192.168.1.95
+  discovery: false
+  birth_message:
+    topic: device/p1mqtt/Status
+    payload: "{ \"clientId\": \"p1mqtt\", \"connected\": 1, \"version\": \"v1.0\", \"services\": {\"meter1\": \"grid\"} }"
+  will_message:
+    topic: device/p1mqtt/Status
+    payload: "{ \"clientId\": \"p1mqtt\", \"connected\": 0, \"services\": {\"meter1\": \"grid\"} }"
+  on_json_message:
+    topic: device/p1mqtt/DBus
+    then:
+      - lambda: |-
+          id(portal_id) = x["portalId"].as<std::string>();
+          id(device_instance) = x["deviceInstance"]["meter1"].as<std::string>();
+      - mqtt.publish_json:
+          topic: !lambda |-
+            return str_sprintf("W/%s/grid/%s/CustomName", id(portal_id).c_str(), id(device_instance).c_str());
+          payload: |-
+            root["value"] = "P1-MQTT Meter";
+      - mqtt.publish_json:
+          topic: !lambda |-
+            return str_sprintf("W/%s/grid/%s/Role", id(portal_id).c_str(), id(device_instance).c_str());
+          payload: |-
+            root["value"] = "grid";
+
+
+sensor:
+  - platform: template
+    name: "Total consumed"
+    id: total_consumed
+    lambda: |-
+      return id(energy_delivered_t1).state + id(energy_delivered_t2).state;
+    update_interval: 10s
+    device_class: energy
+    state_class: total_increasing
+    unit_of_measurement: kWh
+    on_value:
+      then:
+        - mqtt.publish_json:
+            topic: !lambda |-
+              return str_sprintf("W/%s/grid/%s/Ac/Energy/Forward", id(portal_id).c_str(), id(device_instance).c_str());
+            payload: |-
+              root["value"] = id(total_consumed).state;    
+  - platform: template
+    name: "Total injected"
+    id: total_injected
+    lambda: |-
+      return id(energy_returned_t1).state + id(energy_returned_t2).state;
+    update_interval: 10s
+    device_class: energy
+    state_class: total_increasing
+    unit_of_measurement: kWh
+    on_value:
+      then:
+        - mqtt.publish_json:
+            topic: !lambda |-
+              return str_sprintf("W/%s/grid/%s/Ac/Energy/Reverse", id(portal_id).c_str(), id(device_instance).c_str());
+            payload: |-
+              root["value"] = id(total_injected).state;
+  - platform: template
+    name: "L1 Voltage"
+    id: l1_voltage
+    lambda: |-
+      return id(voltage_l1).state;
+    update_interval: 10s
+    device_class: voltage
+    unit_of_measurement: V
+    on_value:
+      then:
+        - mqtt.publish_json:
+            topic: !lambda |-
+                return str_sprintf("W/%s/grid/%s/Ac/L1/Voltage", id(portal_id).c_str(), id(device_instance).c_str());
+            payload: |-
+                root["value"] = id(l1_voltage).state;
+  - platform: template
+    name: "L1 Current"
+    id: l1_current
+    lambda: |-
+      return id(current_l1).state;
+    update_interval: 10s
+    device_class: current
+    unit_of_measurement: A
+    on_value:
+      then:
+        - mqtt.publish_json:
+            topic: !lambda |-
+              return str_sprintf("W/%s/grid/%s/Ac/L1/Current", id(portal_id).c_str(), id(device_instance).c_str());
+            payload: |-
+              root["value"] = id(l1_current).state;
+  - platform: template
+    name: "L1 Power"
+    id: l1_power
+    lambda: |-
+      return (id(power_delivered).state - id(power_returned).state) * 1000;
+    update_interval: 10s
+    device_class: power
+    unit_of_measurement: W
+    on_value:
+      then:
+        - mqtt.publish_json:
+            topic: !lambda |-
+              return str_sprintf("W/%s/grid/%s/Ac/L1/Power", id(portal_id).c_str(), id(device_instance).c_str());
+            payload: |-
+              root["value"] = id(l1_power).state;
+  - platform: template
+    name: "Gas Delivered"
+    id: gas_delivered
+    device_class: gas
+    unit_of_measurement: m3
+    lambda: |-
+      return id(p1_gas_delivered).state;
+    update_interval: 60s
+  - platform: template
+    name: "Water Delivered"
+    id: water_delivered
+    device_class: water
+    unit_of_measurement: m3
+    lambda: |-
+      return id(p1_water_delivered).state;
+    update_interval: 60s
+  - platform: dsmr
+    energy_delivered_tariff1:
+      name: ${friendly_name} Energy Delivered Tariff 1
+      id: energy_delivered_t1
+      state_class: total_increasing
+      internal: True
+    energy_delivered_tariff2:
+      name: ${friendly_name} Energy Delivered Tariff 2
+      id: energy_delivered_t2
+      state_class: total_increasing
+      internal: True
+    energy_returned_tariff1:
+      name: ${friendly_name} Energy Returned Tariff 1
+      id: energy_returned_t1
+      internal: True
+    energy_returned_tariff2:
+      name: ${friendly_name} Energy Returned Tariff 2
+      id: energy_returned_t2
+      internal: True
+    power_delivered:
+      name: ${friendly_name} Power Consumed
+      id: power_delivered
+      internal: True
+    power_returned:
+      name: ${friendly_name} Power Returned
+      id: power_returned
+      internal: True
+    #electricity_failures:
+    #  name: ${friendly_name} Electricity Failures
+    #electricity_long_failures:
+    #  name: ${friendly_name} Electricity Long Failures
+    voltage_l1:
+      name: ${friendly_name} Voltage L1
+      id: voltage_l1
+      internal: True
+    #  on_value:
+    #    then:
+    #      - mqtt.publish_json:
+    #          topic: !lambda |-
+    #            return str_sprintf("W/%s/grid/%s/Ac/L1/Voltage", id(portal_id).c_str(), id(device_instance).c_str());
+    #          payload: |-
+    #            root["value"] = id(voltage_l1).state;
+    #voltage_l2:
+    #  name: ${friendly_name} Voltage L2
+    #voltage_l3:
+    #  name: ${friendly_name} Voltage L3
+    current_l1:
+      name: ${friendly_name} Current L1
+      id: current_l1
+      internal: True
+    #  on_value:
+    #    then:
+    #      - mqtt.publish_json:
+    #          topic: !lambda |-
+    #            return str_sprintf("W/%s/grid/%s/Ac/L1/Current", id(portal_id).c_str(), id(device_instance).c_str());
+    #          payload: |-
+    #            root["value"] = id(current_l1).state;
+    #current_l2:
+    #  name: ${friendly_name} Current L2
+    #current_l3:
+    #  name: ${friendly_name} Current L3
+    power_delivered_l1:
+      name: ${friendly_name} Power Delivered L1
+      internal: True
+    #power_delivered_l2:
+    #  name: ${friendly_name} Power Delivered L2
+    #power_delivered_l3:
+    #  name: ${friendly_name} Power Delivered L3
+    power_returned_l1:
+      name: ${friendly_name} Power Returned L1
+      internal: True
+    #power_returned_l2:
+    #  name: ${friendly_name} Power Returned L2
+    #power_returned_l3:
+    #  name: ${friendly_name} Power Returned L3
+    #gas_delivered:
+    #  name: ${friendly_name} Gas Delivered
+    # Belgium
+    gas_delivered_be:
+      name: ${friendly_name} Gas Delivered
+      id: p1_gas_delivered
+      state_class: total_increasing
+      internal: True
+    water_delivered:
+      name: ${friendly_name} Water Delivered
+      id: p1_water_delivered
+      state_class: total_increasing
+      internal: True
+    # Luxembourg
+    #energy_delivered_lux:
+    #  name: ${friendly_name} Energy Delivered Lux
+    #energy_returned_lux:
+    #  name: ${friendly_name} Energy Returned Lux
+  - platform: wifi_signal
+    name: "wifi_esp-mini-p1"
+    id: "wifi_esp_mini_p1"
+    update_interval: 60s
+    
+text_sensor:
+  - platform: dsmr
+    identification:
+      name: ${friendly_name} Identification
+    #p1_version:
+    #  name: ${friendly_name} Version
+    # Belgium
+    p1_version_be:
+      name: ${friendly_name} Version BE
