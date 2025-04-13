@@ -7,4 +7,5 @@ Using/Inspiriation:
  - https://github.com/freakent/dbus-mqtt-devices  (adding custom devices to Victon through MQTT)
  - https://github.com/psvanstrom/esphome-p1reader (connecting ESP8266 to P1 meter)
  - https://github.com/NuKeMtje/ESPHomeDSMRVictron (esphome to Vicron (MQTT))
- - ....
+ - Smarty Van: https://www.youtube.com/watch?v=lvTGsOFsy8o (Connecting (biderectional!) Victron Cerbo to Home Assistant)  
+ ....
